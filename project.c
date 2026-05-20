@@ -510,6 +510,12 @@ LRESULT CALLBACK BlackWndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
             SetThreadExecutionState(ES_CONTINUOUS);
             UnhookWindowsHookEx(hKeyHook);
             hKeyHook = NULL;
+            // ★ 비번창이 열려있으면 즉시 파괴
+            if (hInputWnd && IsWindow(hInputWnd)) {
+                DestroyWindow(hInputWnd);
+                hInputWnd = NULL;
+                isInputVisible = FALSE;
+            }
         }
 
         InvalidateRect(hWnd, NULL, FALSE);
@@ -675,8 +681,16 @@ LRESULT CALLBACK BlackWndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_COMMAND:
         if (LOWORD(wp) == 100) {
             if (!isTimeSet) {
-                ShowWindow(hInputWnd, SW_SHOW);
+                // 아무것도 안 함
+            } else if (remainingSeconds <= 0) {
+                // 시간 종료 후 → 즉시 바로 해제
+                SetSecurityOptions(0);
+                SetThreadExecutionState(ES_CONTINUOUS);
+                if (hKeyHook != NULL) { UnhookWindowsHookEx(hKeyHook); hKeyHook = NULL; }
+                KillTimer(hWnd, ID_TIMER);
+                PostQuitMessage(0);
             } else {
+                // 타이머 진행 중 → 비밀번호 창
                 isInputVisible = !isInputVisible;
                 if (isInputVisible) {
                     DestroyWindow(hInputWnd);
