@@ -147,7 +147,7 @@ void ApplyRoundRgn(HWND hWnd, int w, int h, int r) {
 }
 
 // -------------------------------------------------------
-// Clock Info 팝업
+// Timer Info 팝업
 // -------------------------------------------------------
 LRESULT CALLBACK ClockDlgProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
     static HFONT hFontTitle, hFontInfo, hFontBtn;
@@ -197,7 +197,7 @@ LRESULT CALLBACK ClockDlgProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
         HFONT hOldFont = (HFONT)SelectObject(memDC, hFontTitle);
         SetTextColor(memDC, RGB(160, 200, 255));
         RECT rcTitle = {0, 14, rc.right, 44};
-        DrawText(memDC, "Clock Info", -1, &rcTitle, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        DrawText(memDC, "Timer Info", -1, &rcTitle, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
         SelectObject(memDC, hFontInfo);
         SetTextColor(memDC, RGB(180, 210, 255));
@@ -265,6 +265,13 @@ LRESULT CALLBACK ClockDlgProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (!hCloseBrush) hCloseBrush = CreateSolidBrush(RGB(20, 35, 80));
         return (LRESULT)hCloseBrush;
     }
+    case WM_KEYDOWN:
+        if (wp == VK_RETURN) {
+            isClockInfoOpen = FALSE;
+            DestroyWindow(hWnd);
+            hClockDlg = NULL;
+    }
+    break;
 
     case WM_COMMAND:
         if (LOWORD(wp) == 1) {
@@ -307,7 +314,7 @@ void ShowClockInfo(void) {
     }
     hClockDlg = CreateWindowEx(
         WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
-        "CLOCK_INFO", "Clock Info",
+        "CLOCK_INFO", "Timer Info",
         WS_POPUP | WS_CAPTION | WS_VISIBLE,
         (sw - 360) / 2, (sh - 230) / 2, 360, 230,
         hBlackWnd, NULL, hInst, NULL);
@@ -320,7 +327,7 @@ void ShowClockInfo(void) {
 // 입력창 (시간 설정 / 비밀번호)
 // -------------------------------------------------------
 LRESULT CALLBACK InputWndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
-    static HFONT hFontLabel, hFontEdit, hFontBtn;
+    static HFONT hFontLabel, hFontEdit;
 
     switch (msg) {
 
@@ -330,28 +337,30 @@ LRESULT CALLBACK InputWndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
                                 DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, "Malgun Gothic");
         hFontEdit  = CreateFont(20, 0, 0, 0, FW_NORMAL,   0, 0, 0,
                                 DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, "Malgun Gothic");
-        hFontBtn   = CreateFont(15, 0, 0, 0, FW_BOLD,     0, 0, 0,
-                                DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, "Malgun Gothic");
         if (!isTimeSet) {
             hTimeEdit = CreateWindowEx(WS_EX_CLIENTEDGE, "EDIT", "",
                 WS_CHILD | WS_VISIBLE | ES_CENTER,
                 85, 70, 170, 36, hWnd, NULL, hInst, NULL);
             SendMessage(hTimeEdit, WM_SETFONT, (WPARAM)hFontEdit, TRUE);
             origEditProc = (WNDPROC)SetWindowLongPtr(hTimeEdit, GWLP_WNDPROC, (LONG_PTR)EditSubProc);
+            HFONT hFontStart = CreateFont(15, 0, 0, 0, FW_BOLD, 0, 0, 0,
+                                          DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, "Malgun Gothic");
             HWND hBtn = CreateWindow("BUTTON", "START",
                 WS_CHILD | WS_VISIBLE | BS_FLAT,
                 110, 125, 120, 38, hWnd, (HMENU)10, hInst, NULL);
-            SendMessage(hBtn, WM_SETFONT, (WPARAM)hFontBtn, TRUE);
+            SendMessage(hBtn, WM_SETFONT, (WPARAM)hFontStart, TRUE);
         } else {
             hEdit = CreateWindowEx(WS_EX_CLIENTEDGE, "EDIT", "",
                 WS_CHILD | WS_VISIBLE | ES_PASSWORD | ES_CENTER,
                 70, 70, 200, 36, hWnd, (HMENU)1, hInst, NULL);
             SendMessage(hEdit, WM_SETFONT, (WPARAM)hFontEdit, TRUE);
             origEditProc = (WNDPROC)SetWindowLongPtr(hEdit, GWLP_WNDPROC, (LONG_PTR)EditSubProc);
+            HFONT hFontUnlock = CreateFont(14, 0, 0, 0, FW_BOLD, 0, 0, 0,
+                                           DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, "Malgun Gothic");
             HWND hBtn = CreateWindow("BUTTON", "UNLOCK",
                 WS_CHILD | WS_VISIBLE | BS_FLAT,
                 110, 125, 120, 38, hWnd, (HMENU)20, hInst, NULL);
-            SendMessage(hBtn, WM_SETFONT, (WPARAM)hFontBtn, TRUE);
+            SendMessage(hBtn, WM_SETFONT, (WPARAM)hFontUnlock, TRUE);
         }
         break;
     }
@@ -507,7 +516,6 @@ LRESULT CALLBACK BlackWndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
         // 시간 종료 시 단 1회만 해제
         if (remainingSeconds <= 0 && hKeyHook != NULL) {
             SetSecurityOptions(0);
-            SetThreadExecutionState(ES_CONTINUOUS);
             UnhookWindowsHookEx(hKeyHook);
             hKeyHook = NULL;
             // ★ 비번창이 열려있으면 즉시 파괴
@@ -542,7 +550,6 @@ LRESULT CALLBACK BlackWndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 
     case WM_KEYDOWN: {
         if (wp == VK_ESCAPE && remainingSeconds <= 0) {
-            SetSecurityOptions(0);
             SetThreadExecutionState(ES_CONTINUOUS);
             if (hKeyHook != NULL) { UnhookWindowsHookEx(hKeyHook); hKeyHook = NULL; }
             KillTimer(hWnd, ID_TIMER);
@@ -684,7 +691,6 @@ LRESULT CALLBACK BlackWndProc(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
                 // 아무것도 안 함
             } else if (remainingSeconds <= 0) {
                 // 시간 종료 후 → 즉시 바로 해제
-                SetSecurityOptions(0);
                 SetThreadExecutionState(ES_CONTINUOUS);
                 if (hKeyHook != NULL) { UnhookWindowsHookEx(hKeyHook); hKeyHook = NULL; }
                 KillTimer(hWnd, ID_TIMER);
